@@ -92,6 +92,7 @@ class AIPlayer(Player):
             tileDist.sort(key=lambda tup: tup[0], reverse=True)
 
             # Place opponent's food in the farthest 2 distances from their anthill
+            # (TODO: Find a better method. The farthest 2 distances could be the shortest two to the tunnel)
             farthestTile1 = tileDist[0]
             farthestCoord1 = farthestTile1[1]
 
@@ -115,7 +116,28 @@ class AIPlayer(Player):
     ##
     def getMove(self, currentState):
         moves = listAllLegalMoves(currentState)
-        return moves[random.randint(0,len(moves) - 1)]
+        ants = getAntList(currentState, PLAYER_ONE)
+        constrList = getConstrList(currentState, None)
+        foodList = []
+        storageList = []
+
+        for constr in constrList:
+            if (constr.type == FOOD):
+                foodList.append(constr.coords)
+            elif (constr.type == TUNNEL or constr.type == ANTHILL):
+                storageList.append(constr.coords)
+
+        for ant in ants:
+            if ant.hasMoved: continue
+            else:
+                for move in moves:
+                    if move.moveType == END: continue
+                    for coord in move.coordList:
+                        # If worker ant is near food source and not carrying food, get food.
+                        # If worker ant is near anthill or tunnel and carrying food, go drop it off.
+                        if ant.coords in move.coordList and ((coord in foodList and not ant.carrying) or (coord in storageList and ant.carrying)):
+                                return move
+                return moves[len(moves) - 1] # last resort: end thy turn
     
     ##
     #getAttack
