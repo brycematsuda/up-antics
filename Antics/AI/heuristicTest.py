@@ -57,9 +57,9 @@ class AIPlayer(Player):
                         for j in range(0, 9):
                             move = (j, y)
                             if move not in moves: x = j
-                    else: # Pick a random spot for anthill for now
+                    else: # Pick a random spot for anthill for now (not on grass)
                         x = random.randint(0, 9)
-                        y = random.randint(0, 3)
+                        y = random.randint(0, 2)
 
                     # Set the move if this space is empty
                     if currentState.board[x][y].constr == None and (x, y) not in moves:
@@ -71,7 +71,7 @@ class AIPlayer(Player):
         elif currentState.phase == SETUP_PHASE_2:   # stuff on foe's side
 
             # Get opponent's anthill coordinates
-            oppConstr = getConstrList(currentState, PLAYER_ONE)
+            oppConstr = getConstrList(currentState, PLAYER_TWO)
             oppAnthill = None
             if (oppConstr[0].type == ANTHILL):
                 oppAnthill = oppConstr[0].coords
