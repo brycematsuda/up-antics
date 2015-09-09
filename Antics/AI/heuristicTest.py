@@ -27,6 +27,7 @@ class AIPlayer(Player):
     def __init__(self, inputPlayerId):
         super(AIPlayer,self).__init__(inputPlayerId, "Heuristic AI Test")
     
+
     ##
     #getPlacement
     #
@@ -57,7 +58,7 @@ class AIPlayer(Player):
                         for j in range(0, 9):
                             move = (j, y)
                             if move not in moves: x = j
-                    else: # Pick a random spot for anthill for now (not on grass)
+                    else: # Pick a random spot for tunnel for now (not on grass)
                         x = random.randint(0, 9)
                         y = random.randint(0, 2)
 
@@ -121,6 +122,9 @@ class AIPlayer(Player):
         foodList = []
         storageList = []
 
+        for move in moves:
+            print str(move)
+
         for constr in constrList:
             if (constr.type == FOOD):
                 foodList.append(constr.coords)
@@ -129,6 +133,7 @@ class AIPlayer(Player):
 
         for ant in ants:
             if ant.hasMoved: continue
+            if ant.type != WORKER: continue
             else:
                 for move in moves:
                     if move.moveType == END: continue
@@ -136,8 +141,26 @@ class AIPlayer(Player):
                         # If worker ant is near food source and not carrying food, get food.
                         # If worker ant is near anthill or tunnel and carrying food, go drop it off.
                         if ant.coords in move.coordList and ((coord in foodList and not ant.carrying) or (coord in storageList and ant.carrying)):
+                                print str(move)
                                 return move
+                        else:
+                            closestFood = []
+                            for food in foodList:
+                                steps = stepsToReach(currentState, ant.coords, food)
+                                closestFood.append((steps, food))
+
+                             # http://stackoverflow.com/a/3121985 -- sorts list from highest distance to lowest
+                            closestFood.sort(key=lambda tup: tup[0])
+
+                            closestTile = closestFood[0]
+                            closestFoodCoord = closestTile[1]
+
+                            bestMove = getOptimalMove(self, currentState, ant.coords, closestFoodCoord)
+                            print bestMove
+                            return bestMove
+                print str(moves[len(moves) - 1])
                 return moves[len(moves) - 1] # last resort: end thy turn
+        return moves[len(moves) - 1] # last resort: end thy turn
     
     ##
     #getAttack
@@ -151,3 +174,14 @@ class AIPlayer(Player):
     def getAttack(self, currentState, attackingAnt, enemyLocations):
         #Attack a random enemy.
         return enemyLocations[random.randint(0, len(enemyLocations) - 1)]
+ 
+def getOptimalMove(self, currentState, src, dest):
+    moves = listAllMovementMoves(currentState)
+    tentativeMove = Move(MOVE_ANT, [src], None)
+    for move in moves:
+        print "tentativeMove.coordList is " + str(tentativeMove.coordList[-1])
+        if src == move.coordList[0]:
+            print "move.coordList[-1] is " + str(move.coordList[-1])
+            if stepsToReach(currentState, move.coordList[-1], dest) < stepsToReach(currentState, tentativeMove.coordList[-1], dest):
+                tentativeMove = move
+    return tentativeMove
