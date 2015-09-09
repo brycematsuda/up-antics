@@ -122,45 +122,40 @@ class AIPlayer(Player):
         foodList = []
         storageList = []
 
-        for move in moves:
-            print str(move)
+        # for move in moves:
+        #     print str(move)
 
         for constr in constrList:
-            if (constr.type == FOOD):
-                foodList.append(constr.coords)
-            elif (constr.type == TUNNEL or constr.type == ANTHILL):
-                storageList.append(constr.coords)
+            # Make sure construction isn't already occupied by another ant
+            if getAntAt(currentState, constr.coords) == None: 
+                if (constr.type == FOOD):
+                    foodList.append(constr.coords)
+                elif (constr.type == TUNNEL or constr.type == ANTHILL):
+                    storageList.append(constr.coords)
 
         for ant in ants:
             if ant.hasMoved: continue
             if ant.type != WORKER: continue
             else:
+                bestMove = moves[len(moves) - 1] # default best move: do nothing
                 for move in moves:
+                    print str(move)
                     if move.moveType == END: continue
                     for coord in move.coordList:
                         # If worker ant is near food source and not carrying food, get food.
                         # If worker ant is near anthill or tunnel and carrying food, go drop it off.
-                        if ant.coords in move.coordList and ((coord in foodList and not ant.carrying) or (coord in storageList and ant.carrying)):
-                                print str(move)
-                                return move
-                        else:
-                            closestFood = []
-                            for food in foodList:
-                                steps = stepsToReach(currentState, ant.coords, food)
-                                closestFood.append((steps, food))
+                        if ant.coords in move.coordList:
+                            if ((coord in foodList and not ant.carrying) or (coord in storageList and ant.carrying)):
+                                bestMove = move
+                            elif not ant.carrying:
+                                closestFoodCoord = getClosestCoordInList(currentState, ant.coords, foodList)
+                                bestMove = getOptimalMove(currentState, ant.coords, closestFoodCoord)
+                            elif ant.carrying:
+                                closestStorageCoord = getClosestCoordInList(currentState, ant.coords, storageList)
+                                bestMove = getOptimalMove(currentState, ant.coords, closestStorageCoord)
+                return bestMove
 
-                             # http://stackoverflow.com/a/3121985 -- sorts list from highest distance to lowest
-                            closestFood.sort(key=lambda tup: tup[0])
-
-                            closestTile = closestFood[0]
-                            closestFoodCoord = closestTile[1]
-
-                            bestMove = getOptimalMove(self, currentState, ant.coords, closestFoodCoord)
-                            print bestMove
-                            return bestMove
-                print str(moves[len(moves) - 1])
-                return moves[len(moves) - 1] # last resort: end thy turn
-        return moves[len(moves) - 1] # last resort: end thy turn
+        return moves[len(moves) - 1] # if all ants have moved, end thy turn
     
     ##
     #getAttack
@@ -175,13 +170,28 @@ class AIPlayer(Player):
         #Attack a random enemy.
         return enemyLocations[random.randint(0, len(enemyLocations) - 1)]
  
-def getOptimalMove(self, currentState, src, dest):
+def getClosestCoordInList(currentState, src, defList, reverse = False):
+    closest = []
+    for dest in defList:
+        steps = stepsToReach(currentState, src, dest)
+        closest.append((steps, dest))
+
+    if (reverse):
+        closest.sort(key=lambda tup: tup[0], reverse=True)
+    else:
+        closest.sort(key=lambda tup: tup[0])
+
+    closestTile = closest[0]
+    closestCoord = closestTile[1]
+
+    return closestCoord
+
+def getOptimalMove(currentState, src, dest):
     moves = listAllMovementMoves(currentState)
     tentativeMove = Move(MOVE_ANT, [src], None)
     for move in moves:
-        print "tentativeMove.coordList is " + str(tentativeMove.coordList[-1])
+        # Only calculate for the current ant's movements
         if src == move.coordList[0]:
-            print "move.coordList[-1] is " + str(move.coordList[-1])
             if stepsToReach(currentState, move.coordList[-1], dest) < stepsToReach(currentState, tentativeMove.coordList[-1], dest):
                 tentativeMove = move
     return tentativeMove
