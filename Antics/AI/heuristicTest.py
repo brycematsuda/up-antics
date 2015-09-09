@@ -70,9 +70,13 @@ class AIPlayer(Player):
                 moves.append(move)
             return moves
         elif currentState.phase == SETUP_PHASE_2:   # stuff on foe's side
+            oppId = PLAYER_TWO
 
             # Get opponent's anthill coordinates
-            oppConstr = getConstrList(currentState, PLAYER_TWO)
+            if (self.playerId == PLAYER_TWO):
+                oppId = PLAYER_ONE
+                
+            oppConstr = getConstrList(currentState, oppId)
             oppAnthill = None
             if (oppConstr[0].type == ANTHILL):
                 oppAnthill = oppConstr[0].coords
@@ -117,7 +121,7 @@ class AIPlayer(Player):
     ##
     def getMove(self, currentState):
         moves = listAllLegalMoves(currentState)
-        ants = getAntList(currentState, PLAYER_ONE)
+        ants = getAntList(currentState, self.playerId)
         constrList = getConstrList(currentState, None)
         foodList = []
         storageList = []
