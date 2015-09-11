@@ -139,12 +139,12 @@ class AIPlayer(Player):
 
         for ant in ants:
             if ant.hasMoved: continue
+            antMoveList = getAntMoveList(ant, moves)
             if ant.type != WORKER: continue
             else:
                 bestMove = moves[len(moves) - 1] # default best move: do nothing
-                for move in moves:
-                    print str(move)
-                    if move.moveType == END: continue
+                for move in antMoveList:
+                    # print str(move)
                     for coord in move.coordList:
                         # If worker ant is near food source and not carrying food, get food.
                         # If worker ant is near anthill or tunnel and carrying food, go drop it off.
@@ -153,10 +153,10 @@ class AIPlayer(Player):
                                 bestMove = move
                             elif not ant.carrying:
                                 closestFoodCoord = getClosestCoordInList(currentState, ant.coords, foodList)
-                                bestMove = getOptimalMove(currentState, ant.coords, closestFoodCoord)
+                                bestMove = getOptimalMove(currentState, closestFoodCoord, antMoveList)
                             elif ant.carrying:
                                 closestStorageCoord = getClosestCoordInList(currentState, ant.coords, storageList)
-                                bestMove = getOptimalMove(currentState, ant.coords, closestStorageCoord)
+                                bestMove = getOptimalMove(currentState, closestStorageCoord, antMoveList)
                 return bestMove
 
         return moves[len(moves) - 1] # if all ants have moved, end thy turn
@@ -190,12 +190,18 @@ def getClosestCoordInList(currentState, src, defList, reverse = False):
 
     return closestCoord
 
-def getOptimalMove(currentState, src, dest):
-    moves = listAllMovementMoves(currentState)
-    tentativeMove = Move(MOVE_ANT, [src], None)
+def getOptimalMove(currentState, dest, antMoveList):
+    bestOptMove = Move(MOVE_ANT, [antMoveList[0].coordList[0]], None) # default best move: staying in place
+    for move in antMoveList:
+        bestOptSteps = stepsToReach(currentState, bestOptMove.coordList[-1], dest)
+        currMoveSteps = stepsToReach(currentState, move.coordList[-1], dest)
+        if currMoveSteps < bestOptSteps: # we've found a better move that takes less steps
+            bestOptMove = move
+    return bestOptMove
+
+def getAntMoveList(ant, moves):
+    antMoveList = []
     for move in moves:
-        # Only calculate for the current ant's movements
-        if src == move.coordList[0]:
-            if stepsToReach(currentState, move.coordList[-1], dest) < stepsToReach(currentState, tentativeMove.coordList[-1], dest):
-                tentativeMove = move
-    return tentativeMove
+        if move.moveType != END and ant.coords == move.coordList[0]:
+            antMoveList.append(move)
+    return antMoveList
