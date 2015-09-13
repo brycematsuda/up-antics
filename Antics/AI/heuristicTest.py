@@ -89,11 +89,13 @@ class AIPlayer(Player):
                         coord = (x, y)
                         tileDist.append((steps, coord))
 
-            # http://stackoverflow.com/a/3121985 -- sorts list from highest distance to lowest
+            # Source: http://stackoverflow.com/a/3121985
+            # Reason for usage: Wanted an easy way to sort a list of tuple values 
+            # from highest to lowest based on the first element in the tuple.
+            # (In this case, the number of steps to a coordinate, given in the second tuple element)
             tileDist.sort(key=lambda tup: tup[0], reverse=True)
 
-            # Place opponent's food in the farthest 2 distances from their anthill
-            # (TODO: Find a better method. The farthest 2 distances could be the shortest two to the tunnel)
+            # Place opponent's food in the farthest 2 distances from their tunnel
             farthestTile1 = tileDist[0]
             farthestCoord1 = farthestTile1[1]
 
@@ -227,11 +229,22 @@ class AIPlayer(Player):
     def getAttack(self, currentState, attackingAnt, enemyLocations):
         # Kill everyone in sight.
         return enemyLocations[random.randint(0, len(enemyLocations) - 1)]
- 
+
+##
+#getClosestCoordInList
+#Description: Finds the closest coordinate in a list to a starting source coord
+#
+#Parameters:
+#    currentState - A clone of the current state (GameState)
+#    src - the starting coordinate (an x, y tuple)
+#    defList - list of x, y tuples
+#
+#Return: the closest coordinate as a tuple
+##
 def getClosestCoordInList(currentState, src, defList):
     if not defList: return src
 
-    closest = []
+    closest = [] 
     for dest in defList:
         steps = stepsToReach(currentState, src, dest)
         closest.append((steps, dest))
@@ -243,6 +256,18 @@ def getClosestCoordInList(currentState, src, defList):
 
     return closestCoord
 
+##
+# getOptimalMove
+# 
+# Description: Finds best move that will move ant closer to a destination coord if out of range
+# 
+# Parameters:
+#   - currentState - copy of the currentState (GameState)
+#   - dest - desired destination coord (x, y tuple)
+#   - antMoveList - a list of the current ant's moves to pick from
+# Returns:
+#   Move that is closest to dest
+##
 def getOptimalMove(currentState, dest, antMoveList):
     bestOptMove = Move(MOVE_ANT, [antMoveList[0].coordList[0]], None) # default best move: staying in place
     for move in antMoveList:
@@ -253,6 +278,18 @@ def getOptimalMove(currentState, dest, antMoveList):
             bestOptMove = move
     return bestOptMove
 
+##
+# getAntMoveList
+#
+# Description: Returns the subset of moves specific to an individual ant (except for end turn)
+#
+# Parameters:
+#   ant - the ant whose moves we want (Ant)
+#   moves - the list of all legal moves across all ants
+# 
+# Returns:
+#   a list of Moves specific to the provided ant
+##
 def getAntMoveList(ant, moves):
     antMoveList = []
     for move in moves:
@@ -260,6 +297,16 @@ def getAntMoveList(ant, moves):
             antMoveList.append(move)
     return antMoveList
 
+##
+# numAnts
+# Description: returns the current number of a given ant type in an Ant array (Ant[])
+#
+# Parameters:
+# - ants - the array of players Ants on the field (Ant[])
+# - antType - type of ant to be counted (WORKER, SOLDIER, etc. - see Constants.py)
+#
+# Return: num - the number of ants of the given type
+##
 def numAnts(ants, antType):
     num = 0
     for ant in ants:
@@ -267,10 +314,20 @@ def numAnts(ants, antType):
             num += 1
     return num
 
+##
+# getOpponentId
+# Description: returns opponents id (for looking up opponent-related items)
+# 
+# Parameters:
+#   self - a reference to the current player (the opponent's id is not the current players)
+# 
+# Returns:
+# oppId - the opponent's id
+##
 def getOpponentId(self):
     oppId = PLAYER_TWO
 
-    # Get opponent's anthill coordinates
+    # Switch if the "good" player is player 2
     if (self.playerId == PLAYER_TWO):
         oppId = PLAYER_ONE
 
