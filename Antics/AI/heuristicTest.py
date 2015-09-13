@@ -70,15 +70,11 @@ class AIPlayer(Player):
                 moves.append(move)
             return moves
         elif currentState.phase == SETUP_PHASE_2:   # stuff on foe's side
-            oppId = PLAYER_TWO
-
-            # Get opponent's anthill coordinates
-            if (self.playerId == PLAYER_TWO):
-                oppId = PLAYER_ONE
+            oppId = getOpponentId(self)
                 
             oppConstr = getConstrList(currentState, oppId)
             oppAnthill = None
-            if (oppConstr[0].type == ANTHILL):
+            if (oppConstr[0].type == TUNNEL):
                 oppAnthill = oppConstr[0].coords
             else:
                 oppAnthill = oppConstr[1].coords
@@ -125,9 +121,24 @@ class AIPlayer(Player):
         constrList = getConstrList(currentState, None)
         foodList = []
         storageList = []
+        anthill = getConstrList(currentState, self.playerId, [(ANTHILL)])[0].coords
+        enemyAnthill = getConstrList(currentState, getOpponentId(self), [(ANTHILL)])[0].coords
+        buildMoves = listAllBuildMoves(currentState)
 
+        # for move in buildMoves:
+            # print move
         # for move in moves:
         #     print str(move)
+
+        
+        if buildMoves:
+            # have at least 2 worker ants to grab from 2 food sources
+            if (numAnts(self, currentState, WORKER) < 2):
+                return buildMoves[0]
+            # have at least 3 soldier ants to attack enemy base
+            if (numAnts(self, currentState, SOLDIER) < 3 and len(buildMoves) > 3):
+                # print str(buildMoves[2])
+                return buildMoves[2]
 
         for constr in constrList:
             # Make sure construction isn't already occupied by another ant
@@ -140,7 +151,19 @@ class AIPlayer(Player):
         for ant in ants:
             if ant.hasMoved: continue
             antMoveList = getAntMoveList(ant, moves)
-            if ant.type != WORKER: continue
+            if ant.type != WORKER:
+                if ant.type == QUEEN:
+                    if (ant.coords == anthill or ant.coords in foodList): 
+                        return antMoveList[random.randint(0, len(antMoveList) - 2)]
+
+                    for coord in listAdjacent(ant.coords):
+                        if getAntAt(currentState, coord) != None:
+                         # Move queen outta the anthill or food so we can build/grab stuff
+                            return antMoveList[random.randint(0, len(antMoveList) - 2)]
+                elif ant.type == SOLDIER:
+                    if ant.coords == enemyAnthill:
+                        return moves[len(moves) - 1] # start capturing the base
+                    return getOptimalMove(currentState, enemyAnthill, antMoveList)
             else:
                 bestMove = moves[len(moves) - 1] # default best move: do nothing
                 for move in antMoveList:
@@ -149,7 +172,7 @@ class AIPlayer(Player):
                         # If worker ant is near food source and not carrying food, get food.
                         # If worker ant is near anthill or tunnel and carrying food, go drop it off.
                         if ant.coords in move.coordList:
-                            if ((coord in foodList and not ant.carrying) or (coord in storageList and ant.carrying)):
+                            if ((coord in foodList and getAntAt(currentState, constr.coords) == None and not ant.carrying) or (coord in storageList and getAntAt(currentState, constr.coords) == None and ant.carrying)):
                                 bestMove = move
                             elif not ant.carrying:
                                 closestFoodCoord = getClosestCoordInList(currentState, ant.coords, foodList)
@@ -158,7 +181,6 @@ class AIPlayer(Player):
                                 closestStorageCoord = getClosestCoordInList(currentState, ant.coords, storageList)
                                 bestMove = getOptimalMove(currentState, closestStorageCoord, antMoveList)
                 return bestMove
-
         return moves[len(moves) - 1] # if all ants have moved, end thy turn
     
     ##
@@ -171,7 +193,7 @@ class AIPlayer(Player):
     #   enemyLocation - The Locations of the Enemies that can be attacked (Location[])
     ##
     def getAttack(self, currentState, attackingAnt, enemyLocations):
-        #Attack a random enemy.
+        # Kill everyone in sight.
         return enemyLocations[random.randint(0, len(enemyLocations) - 1)]
  
 def getClosestCoordInList(currentState, src, defList, reverse = False):
@@ -205,3 +227,20 @@ def getAntMoveList(ant, moves):
         if move.moveType != END and ant.coords == move.coordList[0]:
             antMoveList.append(move)
     return antMoveList
+
+def numAnts(self, currentState, antType):
+    ants = getAntList(currentState, self.playerId)
+    num = 0
+    for ant in ants:
+        if (ant.type == antType):
+            num += 1
+    return num
+
+def getOpponentId(self):
+    oppId = PLAYER_TWO
+
+    # Get opponent's anthill coordinates
+    if (self.playerId == PLAYER_TWO):
+        oppId = PLAYER_ONE
+
+    return oppId
