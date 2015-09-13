@@ -116,13 +116,16 @@ class AIPlayer(Player):
     #Return: The Move to be made
     ##
     def getMove(self, currentState):
+        oppId = getOpponentId(self)
         moves = listAllLegalMoves(currentState)
         ants = getAntList(currentState, self.playerId)
+        enemyQueen = getAntList(currentState, oppId, [(QUEEN)])[0].coords
         constrList = getConstrList(currentState, None)
         foodList = []
         storageList = []
+        hillTunnelList = getConstrList(currentState, self.playerId, [ANTHILL, TUNNEL])
         anthill = getConstrList(currentState, self.playerId, [(ANTHILL)])[0].coords
-        enemyAnthill = getConstrList(currentState, getOpponentId(self), [(ANTHILL)])[0].coords
+        enemyAnthill = getConstrList(currentState, oppId, [(ANTHILL)])[0].coords
         buildMoves = listAllBuildMoves(currentState)
 
         # for move in buildMoves:
@@ -135,35 +138,43 @@ class AIPlayer(Player):
             # have at least 2 worker ants to grab from 2 food sources
             if (numAnts(self, currentState, WORKER) < 2):
                 return buildMoves[0]
-            # have at least 3 soldier ants to attack enemy base
+            # have at least 3 soldier ants to attack enemy base/queen
             if (numAnts(self, currentState, SOLDIER) < 3 and len(buildMoves) > 3):
-                # print str(buildMoves[2])
                 return buildMoves[2]
 
         for constr in constrList:
             # Make sure construction isn't already occupied by another ant
-            if getAntAt(currentState, constr.coords) == None: 
-                if (constr.type == FOOD):
-                    foodList.append(constr.coords)
-                elif (constr.type == TUNNEL or constr.type == ANTHILL):
-                    storageList.append(constr.coords)
+            if getAntAt(currentState, constr.coords) == None and (constr.type == FOOD):
+                foodList.append(constr.coords)
+
+        for hillTunnel in hillTunnelList:
+            if (getAntAt(currentState, hillTunnel.coords) == None):
+                storageList.append(hillTunnel.coords)
 
         for ant in ants:
             if ant.hasMoved: continue
             antMoveList = getAntMoveList(ant, moves)
             if ant.type != WORKER:
                 if ant.type == QUEEN:
-                    if (ant.coords == anthill or ant.coords in foodList): 
+                    if (ant.coords == anthill or ant.coords in storageList or ant.coords in foodList): 
                         return antMoveList[random.randint(0, len(antMoveList) - 2)]
 
                     for coord in listAdjacent(ant.coords):
                         if getAntAt(currentState, coord) != None:
-                         # Move queen outta the anthill or food so we can build/grab stuff
+                         # Trust no ant.
                             return antMoveList[random.randint(0, len(antMoveList) - 2)]
                 elif ant.type == SOLDIER:
                     if ant.coords == enemyAnthill:
                         return moves[len(moves) - 1] # start capturing the base
-                    return getOptimalMove(currentState, enemyAnthill, antMoveList)
+
+                    stepsToQueen = stepsToReach(currentState, ant.coords, enemyQueen)
+                    stepsToAnthill = stepsToReach(currentState, ant.coords, enemyAnthill)
+
+                    # If queen is closer, focus attack on her.
+                    if (stepsToQueen < stepsToAnthill):
+                        return getOptimalMove(currentState, enemyQueen, antMoveList)
+                    else:
+                        return getOptimalMove(currentState, enemyAnthill, antMoveList)
             else:
                 bestMove = moves[len(moves) - 1] # default best move: do nothing
                 for move in antMoveList:
@@ -197,6 +208,8 @@ class AIPlayer(Player):
         return enemyLocations[random.randint(0, len(enemyLocations) - 1)]
  
 def getClosestCoordInList(currentState, src, defList, reverse = False):
+    if not defList: return src
+
     closest = []
     for dest in defList:
         steps = stepsToReach(currentState, src, dest)
