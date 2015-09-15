@@ -25,7 +25,7 @@ class AIPlayer(Player):
     #   inputPlayerId - The id to give the new player (int)
     ##
     def __init__(self, inputPlayerId):
-        super(AIPlayer,self).__init__(inputPlayerId, "Heuristic AI Test")
+        super(AIPlayer,self).__init__(inputPlayerId, "Chandler & Bryce's Simple Build-Attack Agent")
     
 
     ##
@@ -58,7 +58,7 @@ class AIPlayer(Player):
                         for j in range(0, 9):
                             move = (j, y)
                             if move not in moves: x = j
-                    else: # Pick a random spot for tunnel for now (not on grass)
+                    else: # Pick a random spot for tunnel but not on grass
                         x = random.randint(0, 9)
                         y = random.randint(0, 2)
 
@@ -73,29 +73,30 @@ class AIPlayer(Player):
             oppId = getOpponentId(self)
                 
             oppConstr = getConstrList(currentState, oppId)
-            oppAnthill = None
+            oppTunnel = None
             if (oppConstr[0].type == TUNNEL):
-                oppAnthill = oppConstr[0].coords
+                oppTunnel = oppConstr[0].coords
             else:
-                oppAnthill = oppConstr[1].coords
+                oppTunnel = oppConstr[1].coords
 
             moves = []
             move = None
-            tileDist = [] # List of tuples representing all distances from empty spaces to anthill
+            tileDist = [] # List of tuples representing all distances from empty spaces to tunnel
             for x in range(0, 10):
                 for y in range(6, 10):
                     if currentState.board[x][y].constr == None and (x, y) not in moves:
-                        steps = stepsToReach(currentState, (x, y), oppAnthill)
+                        steps = stepsToReach(currentState, (x, y), oppTunnel)
                         coord = (x, y)
                         tileDist.append((steps, coord))
 
             # Source: http://stackoverflow.com/a/3121985
             # Reason for usage: Wanted an easy way to sort a list of tuple values 
             # from highest to lowest based on the first element in the tuple.
-            # (In this case, the number of steps to a coordinate, given in the second tuple element)
+            # (In this case, the number of steps to a coordinate given in the second tuple element)
             tileDist.sort(key=lambda tup: tup[0], reverse=True)
 
             # Place opponent's food in the farthest 2 distances from their tunnel
+            # since that is where the first worker ant is placed
             farthestTile1 = tileDist[0]
             farthestCoord1 = farthestTile1[1]
 
@@ -153,10 +154,11 @@ class AIPlayer(Player):
             # have at least 2 worker ants to grab from 2 food sources
             if (numAnts(ants, WORKER) < 2):
                 return buildMoves[0]
-            # have at least 3 soldier ants to attack enemy base/queen
+            # have at least 3 soldiers to attack enemy base/queen
             if (numAnts(ants, SOLDIER) < 3 and len(buildMoves) > 3):
                 return buildMoves[2]
 
+        # only get ant coordinates (don't care about other info like HP/type/etc)
         for ant in ants:
             antCoordsList.append(ant.coords)
 
@@ -187,12 +189,12 @@ class AIPlayer(Player):
 
                 elif ant.type == SOLDIER:
                     if ant.coords == enemyAnthillCoords:
-                        return moves[len(moves) - 1] # start capturing the base by ending turn
+                        return moves[len(moves) - 1] # start capturing the enemy base by ending turn
 
                     stepsToQueen = stepsToReach(currentState, ant.coords, enemyQueenCoords)
                     stepsToAnthill = stepsToReach(currentState, ant.coords, enemyAnthillCoords)
 
-                    # If queen is closer, focus attack on her.
+                    # If queen is closer, focus attack on her. Otherwise, go towards enemy base
                     if (stepsToQueen < stepsToAnthill):
                         return getOptimalMove(currentState, enemyQueenCoords, antMoveList)
                     else:
@@ -214,6 +216,8 @@ class AIPlayer(Player):
                             elif ant.carrying:
                                 closestStorageCoord = getClosestCoordInList(currentState, ant.coords, storageList)
                                 bestMove = getOptimalMove(currentState, closestStorageCoord, antMoveList)
+                    if (len(bestMove.coordList) == 1): # ant is stuck, do a random move
+                        bestMove = moves[random.randint(0, len(moves) - 1)]
                 return bestMove
         return moves[len(moves) - 1] # if all ants have moved, end thy turn
     
@@ -227,7 +231,7 @@ class AIPlayer(Player):
     #   enemyLocation - The Locations of the Enemies that can be attacked (Location[])
     ##
     def getAttack(self, currentState, attackingAnt, enemyLocations):
-        # Kill everyone in sight.
+        # Attack anyone in sight.
         return enemyLocations[random.randint(0, len(enemyLocations) - 1)]
 
 ##
@@ -249,6 +253,7 @@ def getClosestCoordInList(currentState, src, defList):
         steps = stepsToReach(currentState, src, dest)
         closest.append((steps, dest))
 
+    # Sorts list from lowest to highest steps
     closest.sort(key=lambda tup: tup[0])
 
     closestTile = closest[0]
