@@ -8,6 +8,10 @@ from Move import Move
 from GameState import addCoords
 from AIPlayerUtils import *
 from Ant import *
+from Location import *
+from Building import *
+from Inventory import *
+from GameState import *
 
 
 ##
@@ -112,15 +116,24 @@ class AIPlayer(Player):
     #Return: Move(moveType [int], coordList [list of 2-tuples of ints], buildType [int]
     ##
     def getMove(self, currentState):
+        print "============="
         moves = listAllLegalMoves(currentState)
         movesRatings = []
         for move in moves:
-            s = updateState(self,currentState, move)
-            rating = evaluateState(self, s)
+            nextState = updateState(self,currentState, move)
+            rating = evaluateState(self, nextState)
+            nextInv = nextState.inventories[self.playerId]
+            currInv = currentState.inventories[self.playerId]
+            # Higher rating if food count or amount of carrying ants will go up next state
+            # compared to previous state
+            if nextInv.foodCount > currInv.foodCount or \
+                countCarrying(nextInv.ants) > countCarrying(currInv.ants):
+                rating += 0.25
+            print str(rating) + ": " + str(move)
             movesRatings.append((rating, move))
 
         sortedRatings = sorted(movesRatings, key=lambda x: x[0], reverse=True)
-        print sortedRatings[0]
+        print "============="
         bestMoveRating = sortedRatings[0]
         bestMove = bestMoveRating[1]
         return bestMove
@@ -217,69 +230,96 @@ def updateState(self, currentState, move):
 #           0.0 = Lose, 1.0 = Win, <0.5 = Losing, >=0.5 = Winning.
 ##
 def evaluateState(self, currentState):
-    #Create a reference to all types of enemy ants
-    enemyWorkerAnts = getAntList(currentState, self.playerId - 1, [(WORKER)])
-    enemyDroneAnts = getAntList(currentState, self.playerId - 1, [(DRONE)])
-    enemySoldierAnts = getAntList(currentState, self.playerId - 1, [(SOLDIER)])
-    enemyRangedAnts = getAntList(currentState, self.playerId - 1, [(R_SOLDIER)])
     enemyQueenAnt = getAntList(currentState, self.playerId - 1, [(QUEEN)])
 
-    #Create a reference to all types of friendly ants
     friendlyWorkerAnts = getAntList(currentState, self.playerId, [(WORKER)])
     friendlyDroneAnts = getAntList(currentState, self.playerId, [(DRONE)])
     friendlySoldierAnts = getAntList(currentState, self.playerId, [(SOLDIER)])
     friendlyRangedAnts = getAntList(currentState, self.playerId, [(R_SOLDIER)])
     friendlyQueenAnt = getAntList(currentState, self.playerId, [(QUEEN)])[0]
 
-    #Create a copy of the current player's inventory and the enemy's inventory
     enemyInventory = currentState.inventories[self.playerId - 1]
     friendlyInventory = currentState.inventories[self.playerId]
 
-    #Create a referece to all food on the board
     foodList = getConstrList(currentState, None, [(FOOD)])
 
-    #Create a reference to the life of the enemy's anthill and current players anthill
+    foodCoordList = []
+    for food in foodList:
+        foodCoordList.append(food.coords)
+
     enemyHillLife = enemyInventory.getAnthill().captureHealth
     friendlyHillLife = friendlyInventory.getAnthill().captureHealth
 
+    friendlyConstrList = getConstrList(currentState, self.playerId, [(ANTHILL, TUNNEL)])
+    tunnelList = getConstrList(currentState, self.playerId, [(TUNNEL)])
+    constrCoordList = []
+    for constr in friendlyConstrList:
+        constrCoordList.append(constr.coords)
+
+    # Win / lose cases
     if not enemyQueenAnt or friendlyInventory.foodCount >= 11:
         return 1.0
     elif not friendlyQueenAnt or enemyInventory.foodCount >= 11:
         return 0.0
+    elif len(tunnelList) > 1 or \
+        len(friendlyDroneAnts) > 0 or \
+        len(friendlySoldierAnts) > 0 or \
+        len(friendlyRangedAnts) > 0 or \
+        len(friendlyWorkerAnts) > 2:
+            return 0.0001 # Do not build anything aside from worker ants
     else:
-        rating = random.uniform(0.6, 0.8)
-        foodVar = random.uniform(0.3, 0.4) if (friendlyInventory.foodCount > 3) else 0
-        # carryingVar = -0.2 if (countCarrying(friendlyWorkerAnts) < countCarrying(enemyWorkerAnts)) else 0
-        workerVar = random.uniform(0.2, 0.3) if (len(friendlyWorkerAnts) == len(enemyWorkerAnts)) else 0 
-        queenHealthVar = random.uniform(0.6, 0.8) if (friendlyQueenAnt.health < 3) else 0
-        queenInDangerVar = random.uniform(0.3, 0.5) if enemyInRangeOf(friendlyQueenAnt, self.playerId, currentState) else 0
-        onlyQueen = random.uniform(0.8, 0.9) if (len(friendlyInventory.ants) == 1 and friendlyQueenAnt) else 0
-        # hillVar = -0.3 if (friendlyHillLife < enemyHillLife) else 0
-        rating -= (((queenHealthVar + queenInDangerVar + onlyQueen) / 2.0) + foodVar + workerVar)
-        
+        rating = 0.6
+        workerRating = 0.0
+
+        # Keep 2 worker ants on the field to collect food
+        if (len(friendlyWorkerAnts) == 2):
+            rating += 0.2
+
+        # Keep queen off the anthill and food
+        if (friendlyQueenAnt.coords in foodCoordList) or (friendlyQueenAnt.coords in constrCoordList):
+            rating -= 0.3
+
+        # Keep queen away from enemies
+        for coord in listAdjacent(friendlyQueenAnt.coords):
+            if getAntAt(currentState, coord) != None:
+                adjAnt = getAntAt(currentState, coord)
+                if adjAnt.player != self.playerId:
+                    rating -= 0.08
+
+        for ant in friendlyWorkerAnts:
+            if ant.carrying:
+                # Find the closest tunnel / anthill
+                anthillDist = stepsToReach(currentState, ant.coords, friendlyInventory.getAnthill().coords)
+                tunnelDist = stepsToReach(currentState, ant.coords, friendlyInventory.getTunnels()[0].coords)
+
+                workerRating = anthillDist if anthillDist < tunnelDist else tunnelDist
+    
+                rating -= (float(workerRating) / 100)
+
+                if ant.coords in foodCoordList:
+                    rating -= 0.035
+
+            elif not ant.carrying:
+                # Find the closest food
+                foodStepList = []
+                for foodCoord in foodCoordList:
+                    foodStepList.append(stepsToReach(currentState, ant.coords, foodCoord))
+                workerRating = min(foodStepList)
+                rating -= (float(workerRating) / 100)
+
+                if ant.coords in constrCoordList:
+                    rating -= 0.035
+
         if rating < 0: 
-            rating = random.uniform(0.1, 0.2)
+            rating = random.uniform(0.0, 0.01)
         elif rating > 1: 
-            rating = random.uniform(0.9, 1.0)
+            rating = random.uniform(0.8, 0.9)
         return rating
 
+# Counts the number of ants carrying food in an ants array
 def countCarrying(ants):
     num = 0
     for ant in ants:
         if ant.carrying:
             num += 1
     return num
-
-def goodBadValue(num, testPass):
-    if testPass:
-        return num
-    else:
-        return -num
-
-def enemyInRangeOf(ant, pid, currentState):
-    for a in listAdjacent(ant.coords):
-        if getAntAt(currentState, a):
-            adjAnt = getAntAt(currentState, a)
-            if (adjAnt.player != pid):
-                return True
-    return False
