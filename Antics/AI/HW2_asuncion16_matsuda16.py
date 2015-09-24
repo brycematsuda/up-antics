@@ -320,7 +320,7 @@ class AIPlayer(Player):
                 num += 1
         return num
 
-# Unit Test #1 - ensure evaluateState ftn is working properly
+# Unit Test #1 - ensure ants move correctly and evaluateState ftn is working properly
 board = [[Location((col, row)) for row in xrange(0,BOARD_LENGTH)] for col in xrange(0,BOARD_LENGTH)]
 
 player1Queen = Ant((4, 0), QUEEN, PLAYER_ONE)
@@ -364,8 +364,11 @@ testMove = Move(MOVE_ANT, [(0, 3), (1, 3), (2, 3)], None)
 testAI = AIPlayer(PLAYER_ONE)
 testNewState = testAI.updateState(state, testMove)
 
-evaluateVal = testAI.evaluateState(testNewState)
-if (evaluateVal == 0.57):
-    print "Unit Test #1 Passed"
+if (getAntAt(testNewState, (2, 3)) == None):
+    print "Unit Test #1 Failed. Ant supposed to be at (2, 3)."
 else:
-    print "Unit Test #1 Failed. Got " + str(evaluateVal) + " instead of 0.57. Check the evaluateState function."
+    evaluateVal = testAI.evaluateState(testNewState)
+    if (evaluateVal == 0.57):
+        print "Unit Test #1 Passed"
+    else:
+        print "Unit Test #1 Failed. Got " + str(evaluateVal) + " from evaluateState function instead of 0.57."
