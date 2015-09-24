@@ -116,7 +116,6 @@ class AIPlayer(Player):
     #Return: Move(moveType [int], coordList [list of 2-tuples of ints], buildType [int]
     ##
     def getMove(self, currentState):
-        print "============="
         moves = listAllLegalMoves(currentState)
         movesRatings = []
         for move in moves:
@@ -129,11 +128,10 @@ class AIPlayer(Player):
             if nextInv.foodCount > currInv.foodCount or \
                 countCarrying(nextInv.ants) > countCarrying(currInv.ants):
                 rating += 0.25
-            print str(rating) + ": " + str(move)
+
             movesRatings.append((rating, move))
 
         sortedRatings = sorted(movesRatings, key=lambda x: x[0], reverse=True)
-        print "============="
         bestMoveRating = sortedRatings[0]
         bestMove = bestMoveRating[1]
         return bestMove
@@ -230,7 +228,8 @@ def updateState(self, currentState, move):
 #           0.0 = Lose, 1.0 = Win, <0.5 = Losing, >=0.5 = Winning.
 ##
 def evaluateState(self, currentState):
-    enemyQueenAnt = getAntList(currentState, self.playerId - 1, [(QUEEN)])
+    oppId = 1 if self.playerId - 1 == -1 else 0
+    enemyQueenAnt = getAntList(currentState, oppId, [(QUEEN)])
 
     friendlyWorkerAnts = getAntList(currentState, self.playerId, [(WORKER)])
     friendlyDroneAnts = getAntList(currentState, self.playerId, [(DRONE)])
@@ -246,9 +245,6 @@ def evaluateState(self, currentState):
     foodCoordList = []
     for food in foodList:
         foodCoordList.append(food.coords)
-
-    enemyHillLife = enemyInventory.getAnthill().captureHealth
-    friendlyHillLife = friendlyInventory.getAnthill().captureHealth
 
     friendlyConstrList = getConstrList(currentState, self.playerId, [(ANTHILL, TUNNEL)])
     tunnelList = getConstrList(currentState, self.playerId, [(TUNNEL)])
@@ -323,3 +319,53 @@ def countCarrying(ants):
         if ant.carrying:
             num += 1
     return num
+
+# Unit Test #1 - ensure evaluateState ftn is working properly
+board = [[Location((col, row)) for row in xrange(0,BOARD_LENGTH)] for col in xrange(0,BOARD_LENGTH)]
+
+player1Queen = Ant((4, 0), QUEEN, PLAYER_ONE)
+player1Worker = Ant((0, 3), WORKER, PLAYER_ONE)
+player1Worker.carrying = True
+
+player2Queen = Ant((2, 5), QUEEN, PLAYER_TWO)
+player2Worker = Ant((4, 6), WORKER, PLAYER_TWO)
+
+player1Ants = [player1Queen, player1Worker]
+player2Ants = [player2Queen, player2Worker]
+
+player1Anthill = Building((2, 0), ANTHILL, PLAYER_ONE)
+player1Tunnel = Building((3, 0), TUNNEL, PLAYER_ONE)
+
+player2Anthill = Building((2, 5), ANTHILL, PLAYER_TWO)
+player2Tunnel = Building((4, 5), TUNNEL, PLAYER_TWO)
+
+foodList = [ Construction((7, 4), FOOD), Construction((0, 3), FOOD), Construction((4, 5), FOOD), Construction((2, 1), FOOD)]
+
+player1Inv = Inventory(PLAYER_ONE, player1Ants, [player1Anthill, player1Tunnel], 1)
+player2Inv = Inventory(PLAYER_TWO, player2Ants, [player2Anthill, player2Tunnel], 1)
+neutralInv = Inventory(NEUTRAL, [], [], 0)
+
+for ant in player1Ants:
+    board[ant.coords[0]][ant.coords[1]].ant = ant
+for ant in player2Ants:
+    board[ant.coords[0]][ant.coords[1]].ant = ant
+
+for construct in player1Inv.constrs:
+    board[construct.coords[0]][construct.coords[1]].constr = construct
+for construct in player2Inv.constrs:
+    board[construct.coords[0]][construct.coords[1]].constr = construct
+
+for food in foodList:
+    board[food.coords[0]][food.coords[1]].constr = food
+
+state = GameState(board, [player1Inv, player2Inv, neutralInv], PLAY_PHASE, PLAYER_ONE)
+
+testMove = Move(MOVE_ANT, [(0, 3), (1, 3), (2, 3)], None)
+testAI = AIPlayer(PLAYER_ONE)
+testNewState = updateState(testAI, state, testMove)
+
+evaluateVal = evaluateState(testAI, testNewState)
+if (evaluateVal == 0.57):
+    print "Unit Test #1 Passed"
+else:
+    print "Unit Test #1 Failed. Got " + str(evaluateVal) + " instead of 0.57. Check the evaluateState function."
