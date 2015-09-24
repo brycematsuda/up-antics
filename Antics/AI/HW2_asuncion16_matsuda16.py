@@ -119,14 +119,14 @@ class AIPlayer(Player):
         moves = listAllLegalMoves(currentState)
         movesRatings = []
         for move in moves:
-            nextState = updateState(self,currentState, move)
-            rating = evaluateState(self, nextState)
+            nextState = self.updateState(currentState, move)
+            rating = self.evaluateState(nextState)
             nextInv = nextState.inventories[self.playerId]
             currInv = currentState.inventories[self.playerId]
             # Higher rating if food count or amount of carrying ants will go up next state
             # compared to previous state
             if nextInv.foodCount > currInv.foodCount or \
-                countCarrying(nextInv.ants) > countCarrying(currInv.ants):
+                self.countCarrying(nextInv.ants) > self.countCarrying(currInv.ants):
                 rating += 0.25
 
             movesRatings.append((rating, move))
@@ -159,166 +159,166 @@ class AIPlayer(Player):
         #Attack a random enemy.
         return enemyLocations[random.randint(0, len(enemyLocations) - 1)]
 
-##
-#updatedState
-#Description: Determines what the agent's state would look like after a given move
-#
-#Parameters:
-#   currentState: the current state of the game
-#   Move: a move object
-#
-#Return:
-#   possibleState: A copy of currentState that has been altered to be a node
-##
-def updateState(self, currentState, move):
-#Create a copy of the current state to make a state for a potential move
-    stateCopy = currentState.fastclone()
-    #Create a copy of the current player's inventory
-    currInventory = getCurrPlayerInventory(stateCopy)
-    #get a reference to where the enemy ants are
-    enemyAntList = getAntList(stateCopy, self.playerId - 1, [(QUEEN, WORKER, DRONE, SOLDIER, R_SOLDIER)])
-    #part a
-    if(move.moveType == BUILD):
-        antInitCoords = getConstrList(currentState, self.playerId, [(ANTHILL)])[0].coords
-        newAnt = Ant(antInitCoords, move.buildType, self.playerId)
-        currInventory.ants.append(newAnt)
-        #part f
-        if(newAnt.type == SOLDIER):
-            currInventory.foodCount -= 3
-        elif(newAnt.type == DRONE or newAnt.type == WORKER):
-            currInventory.foodCount -= 1
-        elif(newAnt.type == R_SOLDIER):
-            currInventory.foodCount -= 2
-    #part b
-    if(move.moveType == MOVE_ANT):
-        ant = getAntAt(stateCopy, move.coordList[0])
-        newSpot = move.coordList[len(move.coordList) - 1]
-        ant.coords = newSpot
-        #part d
-        adjacent = listAdjacent(ant.coords)
-        for x in range(0, len(adjacent)):
-            for y in range(0, len(enemyAntList)):
-                if(adjacent[x] == enemyAntList[y].coords):
-                    attackedAnt = getAntAt(stateCopy, adjacent[x])
-                    attackedAnt.health -= 1
-                    if(attackedAnt.health <= 0):
-                        enemyAntList.remove(attackedAnt)
-        #part c
-        foodList = getConstrList(stateCopy, None, [(FOOD)])
+    ##
+    #updatedState
+    #Description: Determines what the agent's state would look like after a given move
+    #
+    #Parameters:
+    #   currentState: the current state of the game
+    #   Move: a move object
+    #
+    #Return:
+    #   possibleState: A copy of currentState that has been altered to be a node
+    ##
+    def updateState(self, currentState, move):
+    #Create a copy of the current state to make a state for a potential move
+        stateCopy = currentState.fastclone()
+        #Create a copy of the current player's inventory
+        currInventory = getCurrPlayerInventory(stateCopy)
+        #get a reference to where the enemy ants are
+        enemyAntList = getAntList(stateCopy, self.playerId - 1, [(QUEEN, WORKER, DRONE, SOLDIER, R_SOLDIER)])
+        #part a
+        if(move.moveType == BUILD):
+            antInitCoords = getConstrList(currentState, self.playerId, [(ANTHILL)])[0].coords
+            newAnt = Ant(antInitCoords, move.buildType, self.playerId)
+            currInventory.ants.append(newAnt)
+            #part f
+            if(newAnt.type == SOLDIER):
+                currInventory.foodCount -= 3
+            elif(newAnt.type == DRONE or newAnt.type == WORKER):
+                currInventory.foodCount -= 1
+            elif(newAnt.type == R_SOLDIER):
+                currInventory.foodCount -= 2
+        #part b
+        if(move.moveType == MOVE_ANT):
+            ant = getAntAt(stateCopy, move.coordList[0])
+            newSpot = move.coordList[len(move.coordList) - 1]
+            ant.coords = newSpot
+            #part d
+            adjacent = listAdjacent(ant.coords)
+            for x in range(0, len(adjacent)):
+                for y in range(0, len(enemyAntList)):
+                    if(adjacent[x] == enemyAntList[y].coords):
+                        attackedAnt = getAntAt(stateCopy, adjacent[x])
+                        attackedAnt.health -= 1
+                        if(attackedAnt.health <= 0):
+                            enemyAntList.remove(attackedAnt)
+            #part c
+            foodList = getConstrList(stateCopy, None, [(FOOD)])
+            for food in foodList:
+                if(ant.coords == food.coords and ant.carrying == False):
+                    ant.carrying = True
+            if(ant.coords == getConstrList(stateCopy, self.playerId, [(ANTHILL)])[0].coords and ant.carrying == True):
+                ant.carrying = False
+                currInventory.foodCount += 1
+
+        #part e
+        return stateCopy
+
+
+    ##
+    #evaluateState
+    #Description: evaluates a given state and assigns to it a rating
+    #
+    #Parameters:
+    #   currentState: the current state of the game
+    #
+    #Return:
+    #   rating: a rating (between 0.0 - 1.0) of the examined game state.
+    #           0.0 = Lose, 1.0 = Win, <0.5 = Losing, >=0.5 = Winning.
+    ##
+    def evaluateState(self, currentState):
+        oppId = 1 if self.playerId - 1 == -1 else 0
+        enemyQueenAnt = getAntList(currentState, oppId, [(QUEEN)])
+
+        friendlyWorkerAnts = getAntList(currentState, self.playerId, [(WORKER)])
+        friendlyDroneAnts = getAntList(currentState, self.playerId, [(DRONE)])
+        friendlySoldierAnts = getAntList(currentState, self.playerId, [(SOLDIER)])
+        friendlyRangedAnts = getAntList(currentState, self.playerId, [(R_SOLDIER)])
+        friendlyQueenAnt = getAntList(currentState, self.playerId, [(QUEEN)])[0]
+
+        enemyInventory = currentState.inventories[self.playerId - 1]
+        friendlyInventory = currentState.inventories[self.playerId]
+
+        foodList = getConstrList(currentState, None, [(FOOD)])
+
+        foodCoordList = []
         for food in foodList:
-            if(ant.coords == food.coords and ant.carrying == False):
-                ant.carrying = True
-        if(ant.coords == getConstrList(stateCopy, self.playerId, [(ANTHILL)])[0].coords and ant.carrying == True):
-            ant.carrying = False
-            currInventory.foodCount += 1
+            foodCoordList.append(food.coords)
 
-    #part e
-    return stateCopy
+        friendlyConstrList = getConstrList(currentState, self.playerId, [(ANTHILL, TUNNEL)])
+        tunnelList = getConstrList(currentState, self.playerId, [(TUNNEL)])
+        constrCoordList = []
+        for constr in friendlyConstrList:
+            constrCoordList.append(constr.coords)
 
+        # Win / lose cases
+        if not enemyQueenAnt or friendlyInventory.foodCount >= 11:
+            return 1.0
+        elif not friendlyQueenAnt or enemyInventory.foodCount >= 11:
+            return 0.0
+        elif len(tunnelList) > 1 or \
+            len(friendlyDroneAnts) > 0 or \
+            len(friendlySoldierAnts) > 0 or \
+            len(friendlyRangedAnts) > 0 or \
+            len(friendlyWorkerAnts) > 2:
+                return 0.0001 # Do not build anything aside from worker ants
+        else:
+            rating = 0.6
+            workerRating = 0.0
 
-##
-#evaluateState
-#Description: evaluates a given state and assigns to it a rating
-#
-#Parameters:
-#   currentState: the current state of the game
-#
-#Return:
-#   rating: a rating (between 0.0 - 1.0) of the examined game state.
-#           0.0 = Lose, 1.0 = Win, <0.5 = Losing, >=0.5 = Winning.
-##
-def evaluateState(self, currentState):
-    oppId = 1 if self.playerId - 1 == -1 else 0
-    enemyQueenAnt = getAntList(currentState, oppId, [(QUEEN)])
+            # Keep 2 worker ants on the field to collect food
+            if (len(friendlyWorkerAnts) == 2):
+                rating += 0.2
 
-    friendlyWorkerAnts = getAntList(currentState, self.playerId, [(WORKER)])
-    friendlyDroneAnts = getAntList(currentState, self.playerId, [(DRONE)])
-    friendlySoldierAnts = getAntList(currentState, self.playerId, [(SOLDIER)])
-    friendlyRangedAnts = getAntList(currentState, self.playerId, [(R_SOLDIER)])
-    friendlyQueenAnt = getAntList(currentState, self.playerId, [(QUEEN)])[0]
+            # Keep queen off the anthill and food
+            if (friendlyQueenAnt.coords in foodCoordList) or (friendlyQueenAnt.coords in constrCoordList):
+                rating -= 0.3
 
-    enemyInventory = currentState.inventories[self.playerId - 1]
-    friendlyInventory = currentState.inventories[self.playerId]
+            # Keep queen away from enemies
+            for coord in listAdjacent(friendlyQueenAnt.coords):
+                if getAntAt(currentState, coord) != None:
+                    adjAnt = getAntAt(currentState, coord)
+                    if adjAnt.player != self.playerId:
+                        rating -= 0.08
 
-    foodList = getConstrList(currentState, None, [(FOOD)])
+            for ant in friendlyWorkerAnts:
+                if ant.carrying:
+                    # Find the closest tunnel / anthill
+                    anthillDist = stepsToReach(currentState, ant.coords, friendlyInventory.getAnthill().coords)
+                    tunnelDist = stepsToReach(currentState, ant.coords, friendlyInventory.getTunnels()[0].coords)
 
-    foodCoordList = []
-    for food in foodList:
-        foodCoordList.append(food.coords)
+                    workerRating = anthillDist if anthillDist < tunnelDist else tunnelDist
+        
+                    rating -= (float(workerRating) / 100)
 
-    friendlyConstrList = getConstrList(currentState, self.playerId, [(ANTHILL, TUNNEL)])
-    tunnelList = getConstrList(currentState, self.playerId, [(TUNNEL)])
-    constrCoordList = []
-    for constr in friendlyConstrList:
-        constrCoordList.append(constr.coords)
+                    if ant.coords in foodCoordList:
+                        rating -= 0.035
 
-    # Win / lose cases
-    if not enemyQueenAnt or friendlyInventory.foodCount >= 11:
-        return 1.0
-    elif not friendlyQueenAnt or enemyInventory.foodCount >= 11:
-        return 0.0
-    elif len(tunnelList) > 1 or \
-        len(friendlyDroneAnts) > 0 or \
-        len(friendlySoldierAnts) > 0 or \
-        len(friendlyRangedAnts) > 0 or \
-        len(friendlyWorkerAnts) > 2:
-            return 0.0001 # Do not build anything aside from worker ants
-    else:
-        rating = 0.6
-        workerRating = 0.0
+                elif not ant.carrying:
+                    # Find the closest food
+                    foodStepList = []
+                    for foodCoord in foodCoordList:
+                        foodStepList.append(stepsToReach(currentState, ant.coords, foodCoord))
+                    workerRating = min(foodStepList)
+                    rating -= (float(workerRating) / 100)
 
-        # Keep 2 worker ants on the field to collect food
-        if (len(friendlyWorkerAnts) == 2):
-            rating += 0.2
+                    if ant.coords in constrCoordList:
+                        rating -= 0.035
 
-        # Keep queen off the anthill and food
-        if (friendlyQueenAnt.coords in foodCoordList) or (friendlyQueenAnt.coords in constrCoordList):
-            rating -= 0.3
+            if rating < 0: 
+                rating = random.uniform(0.0, 0.01)
+            elif rating > 1: 
+                rating = random.uniform(0.8, 0.9)
+            return rating
 
-        # Keep queen away from enemies
-        for coord in listAdjacent(friendlyQueenAnt.coords):
-            if getAntAt(currentState, coord) != None:
-                adjAnt = getAntAt(currentState, coord)
-                if adjAnt.player != self.playerId:
-                    rating -= 0.08
-
-        for ant in friendlyWorkerAnts:
+    # Counts the number of ants carrying food in an ants array
+    def countCarrying(self, ants):
+        num = 0
+        for ant in ants:
             if ant.carrying:
-                # Find the closest tunnel / anthill
-                anthillDist = stepsToReach(currentState, ant.coords, friendlyInventory.getAnthill().coords)
-                tunnelDist = stepsToReach(currentState, ant.coords, friendlyInventory.getTunnels()[0].coords)
-
-                workerRating = anthillDist if anthillDist < tunnelDist else tunnelDist
-    
-                rating -= (float(workerRating) / 100)
-
-                if ant.coords in foodCoordList:
-                    rating -= 0.035
-
-            elif not ant.carrying:
-                # Find the closest food
-                foodStepList = []
-                for foodCoord in foodCoordList:
-                    foodStepList.append(stepsToReach(currentState, ant.coords, foodCoord))
-                workerRating = min(foodStepList)
-                rating -= (float(workerRating) / 100)
-
-                if ant.coords in constrCoordList:
-                    rating -= 0.035
-
-        if rating < 0: 
-            rating = random.uniform(0.0, 0.01)
-        elif rating > 1: 
-            rating = random.uniform(0.8, 0.9)
-        return rating
-
-# Counts the number of ants carrying food in an ants array
-def countCarrying(ants):
-    num = 0
-    for ant in ants:
-        if ant.carrying:
-            num += 1
-    return num
+                num += 1
+        return num
 
 # Unit Test #1 - ensure evaluateState ftn is working properly
 board = [[Location((col, row)) for row in xrange(0,BOARD_LENGTH)] for col in xrange(0,BOARD_LENGTH)]
@@ -339,7 +339,7 @@ player1Tunnel = Building((3, 0), TUNNEL, PLAYER_ONE)
 player2Anthill = Building((2, 5), ANTHILL, PLAYER_TWO)
 player2Tunnel = Building((4, 5), TUNNEL, PLAYER_TWO)
 
-foodList = [ Construction((7, 4), FOOD), Construction((0, 3), FOOD), Construction((4, 5), FOOD), Construction((2, 1), FOOD)]
+foodList = [Construction((7, 4), FOOD), Construction((0, 3), FOOD), Construction((4, 5), FOOD), Construction((2, 1), FOOD)]
 
 player1Inv = Inventory(PLAYER_ONE, player1Ants, [player1Anthill, player1Tunnel], 1)
 player2Inv = Inventory(PLAYER_TWO, player2Ants, [player2Anthill, player2Tunnel], 1)
@@ -362,9 +362,9 @@ state = GameState(board, [player1Inv, player2Inv, neutralInv], PLAY_PHASE, PLAYE
 
 testMove = Move(MOVE_ANT, [(0, 3), (1, 3), (2, 3)], None)
 testAI = AIPlayer(PLAYER_ONE)
-testNewState = updateState(testAI, state, testMove)
+testNewState = testAI.updateState(state, testMove)
 
-evaluateVal = evaluateState(testAI, testNewState)
+evaluateVal = testAI.evaluateState(testNewState)
 if (evaluateVal == 0.57):
     print "Unit Test #1 Passed"
 else:
